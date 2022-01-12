@@ -34,6 +34,7 @@ import Distribution.Server.Features.PreferredVersions   (initVersionsFeature)
 -- [reverse index disabled] import Distribution.Server.Features.ReverseDependencies (initReverseFeature)
 import Distribution.Server.Features.DownloadCount       (initDownloadFeature)
 import Distribution.Server.Features.Tags                (initTagsFeature)
+import Distribution.Server.Features.TrackingPixels      (initTrackingPixelsFeature)
 import Distribution.Server.Features.Search              (initSearchFeature)
 import Distribution.Server.Features.PackageList         (initListFeature)
 import Distribution.Server.Features.HaskellPlatform     (initPlatformFeature)
@@ -125,6 +126,8 @@ initHackageFeatures env@ServerEnv{serverVerbosity = verbosity} = do
                                initDownloadFeature env
     mkTagsFeature           <- logStartup "tags" $
                                initTagsFeature env
+    mkTrackingPixelsFeature <- logStartup "tracking pixels" $ 
+                               initTrackingPixelsFeature env
     mkVersionsFeature       <- logStartup "versions" $
                                initVersionsFeature env
     -- mkReverseFeature     <- logStartup "reverse deps" $
@@ -247,6 +250,10 @@ initHackageFeatures env@ServerEnv{serverVerbosity = verbosity} = do
                          uploadFeature
                          usersFeature
 
+    trackingPixelsFeature <- mkTrackingPixelsFeature
+                               coreFeature
+                               usersFeature
+
     versionsFeature <- mkVersionsFeature
                          coreFeature
                          uploadFeature
@@ -350,6 +357,7 @@ initHackageFeatures env@ServerEnv{serverVerbosity = verbosity} = do
          , getFeatureInterface documentationCandidatesFeature
          , getFeatureInterface downloadFeature
          , getFeatureInterface tagsFeature
+         , getFeatureInterface trackingPixelsFeature
          , getFeatureInterface versionsFeature
          -- [reverse index disabled] , getFeatureInterface reverseFeature
          , getFeatureInterface searchFeature
