@@ -1,7 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving,
              TypeFamilies, TemplateHaskell #-}
 
-module Distribution.Server.Features.TrackingPixels.State where
+module Distribution.Server.Features.TrackingPixels.State 
+    ( TrackingPixel(..)
+    , TrackingPixelsState(..)
+    , initialTrackingPixelsState
+
+    -- * State queries and updates
+    , TrackingPixelsForPackage(..)
+    , AddPackageTrackingPixel(..)
+    , RemovePackageTrackingPixel(..)
+    , GetTrackingPixelsState(..)
+    , ReplaceTrackingPixelsState(..)
+    ) where
 
 import Distribution.Package (PackageName)
 
@@ -91,6 +102,7 @@ replaceTrackingPixelsState = State.put
 makeAcidic
   ''TrackingPixelsState
   [ 'getTrackingPixelsState
+  , 'trackingPixelsForPackage
   , 'replaceTrackingPixelsState
   , 'addPackageTrackingPixel
   , 'removePackageTrackingPixel

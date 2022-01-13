@@ -27,6 +27,7 @@ import Distribution.Server.Features.PreferredVersions
 import Distribution.Server.Features.PackageContents (PackageContentsFeature(..))
 import Distribution.Server.Features.PackageList
 import Distribution.Server.Features.Tags
+import Distribution.Server.Features.TrackingPixels
 import Distribution.Server.Features.Mirror
 import Distribution.Server.Features.Distro
 import Distribution.Server.Features.Documentation
@@ -106,7 +107,9 @@ initHtmlFeature :: ServerEnv
                     -> UploadFeature -> PackageCandidatesFeature
                     -> VersionsFeature
                     -- [reverse index disabled] -> ReverseFeature
-                    -> TagsFeature -> DownloadFeature
+                    -> TagsFeature 
+                    -> TrackingPixelsFeature
+                    -> DownloadFeature
                     -> VotesFeature
                     -> ListFeature -> SearchFeature
                     -> MirrorFeature -> DistroFeature
@@ -133,6 +136,7 @@ initHtmlFeature env@ServerEnv{serverTemplatesDir, serverTemplatesMode,
                    , "tag-edit.html"
                    , "candidate-page.html"
                    , "candidate-index.html"
+                   , "tracking-pixels-page.html"
                    ]
 
 
@@ -140,7 +144,7 @@ initHtmlFeature env@ServerEnv{serverTemplatesDir, serverTemplatesMode,
               packages upload
               candidates versions
               -- [reverse index disabled] reverse
-              tags download
+              tags trackingPixels download
               rank
               list@ListFeature{itemUpdate}
               names mirror
@@ -154,7 +158,7 @@ initHtmlFeature env@ServerEnv{serverTemplatesDir, serverTemplatesMode,
                 htmlFeature env user core
                             packages upload
                             candidates versions
-                            tags download
+                            tags trackingPixels download
                             rank
                             list names
                             mirror distros
@@ -209,6 +213,7 @@ htmlFeature :: ServerEnv
             -> PackageCandidatesFeature
             -> VersionsFeature
             -> TagsFeature
+            -> TrackingPixelsFeature
             -> DownloadFeature
             -> VotesFeature
             -> ListFeature
@@ -233,7 +238,7 @@ htmlFeature env@ServerEnv{..}
             packages upload
             candidates versions
             -- [reverse index disabled] ReverseFeature{..}
-            tags download
+            tags trackingPixels download
             rank
             list@ListFeature{getAllLists, makeItemList}
             names
@@ -302,6 +307,8 @@ htmlFeature env@ServerEnv{..}
     htmlTags       = mkHtmlTags       utilities core upload user list tags templates
     htmlSearch     = mkHtmlSearch     utilities core list names cacheBrowseTable templates
 
+    htmlTrackingPixels = mkHtmlTrackingPixels utilities core trackingPixels templates
+
     htmlResources = concat [
         htmlCoreResources       htmlCore
       , htmlUsersResources      htmlUsers
@@ -313,6 +320,7 @@ htmlFeature env@ServerEnv{..}
       , htmlDownloadsResources  htmlDownloads
       , htmlTagsResources       htmlTags
       , htmlSearchResources     htmlSearch
+      , htmlTrackingPixelsResources htmlTrackingPixels
       -- and user groups. package maintainers, trustees, admins
       , htmlGroupResource user (maintainersGroupResource . uploadResource $ upload)
       , htmlGroupResource user (trusteesGroupResource    . uploadResource $ upload)
@@ -1802,6 +1810,53 @@ mkHtmlTags HtmlUtilities{..}
 tagInPath :: forall m a. (MonadPlus m, FromReqURI a) => DynamicPath -> m a
 tagInPath dpath = maybe mzero return (lookup "tag" dpath >>= fromReqURI)
 
+{-------------------------------------------------------------------------------
+  Tracking pixels
+-------------------------------------------------------------------------------}
+
+newtype HtmlTrackingPixels = HtmlTrackingPixels {
+    htmlTrackingPixelsResources :: [Resource]
+  }
+
+mkHtmlTrackingPixels :: HtmlUtilities -> CoreFeature -> TrackingPixelsFeature -> Templates -> HtmlTrackingPixels
+mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} TrackingPixelsFeature{..} templates = HtmlTrackingPixels{..}
+  where
+    CoreResource{..} = coreResource
+
+    htmlTrackingPixelsResources = [
+        (extendResource trackingPixelsResource) {
+            resourceGet = [("html", servePackageTrackingPixels)]
+          , resourcePost = [("html", serveAddPackageTrackingPixel)] 
+        }
+      ]
+
+    servePackageTrackingPixels :: DynamicPath -> ServerPartE Response 
+    servePackageTrackingPixels dpath = do
+        pkgname <- packageInPath dpath
+        guardValidPackageName pkgname
+        packageTrackingPixelsHtml pkgname    
+
+    serveAddPackageTrackingPixel :: DynamicPath -> ServerPartE Response
+    serveAddPackageTrackingPixel dpath = do
+        pkgname <- packageInPath dpath
+        guardValidPackageName pkgname
+        --guardAuthorised_ [InGroup adminGroup]
+        reqData <- getDataFn (look "tracking-pixel")
+        case reqData of
+            (Left errs) -> errBadRequest "Error adding new tracking pixel"
+                       ((MText "Tracking pixel url missing.") : map MText errs)
+            (Right trackingPixel) -> do
+                _added <- addPackageTrackingPixel pkgname (TrackingPixel (T.pack trackingPixel))
+                servePackageTrackingPixels dpath
+
+    packageTrackingPixelsHtml :: PackageName -> ServerPartE Response
+    packageTrackingPixelsHtml pkgname = do
+        trackingPixels <- getPackageTrackingPixels pkgname
+        template <- getTemplate templates "tracking-pixels-page.html"
+        return $ toResponse $ template
+            [ "pkgname" $= pkgname,
+              "trackingPixels" $= map trackingPixelUrl (Set.toList trackingPixels)
+            ]
 
 {-------------------------------------------------------------------------------
   Search

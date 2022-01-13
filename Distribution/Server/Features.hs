@@ -253,6 +253,7 @@ initHackageFeatures env@ServerEnv{serverVerbosity = verbosity} = do
     trackingPixelsFeature <- mkTrackingPixelsFeature
                                coreFeature
                                usersFeature
+                               uploadFeature
 
     versionsFeature <- mkVersionsFeature
                          coreFeature
@@ -290,6 +291,7 @@ initHackageFeatures env@ServerEnv{serverVerbosity = verbosity} = do
                          versionsFeature
                          -- [reverse index disabled] reverseFeature
                          tagsFeature
+                         trackingPixelsFeature
                          downloadFeature
                          votesFeature
                          listFeature
