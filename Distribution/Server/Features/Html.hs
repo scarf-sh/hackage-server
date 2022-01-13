@@ -280,6 +280,7 @@ htmlFeature env@ServerEnv{..}
                                       versions
                                       upload
                                       tags
+                                      trackingPixels
                                       docsCore
                                       tarIndexCache
                                       reportsCore
@@ -486,6 +487,7 @@ mkHtmlCore :: ServerEnv
            -> VersionsFeature
            -> UploadFeature
            -> TagsFeature
+           -> TrackingPixelsFeature
            -> DocumentationFeature
            -> TarIndexCacheFeature
            -> ReportsFeature
@@ -513,6 +515,7 @@ mkHtmlCore ServerEnv{serverBaseURI, serverBlobStore}
                           }
            UploadFeature{guardAuthorisedAsMaintainerOrTrustee}
            TagsFeature{queryTagsForPackage}
+           TrackingPixelsFeature{getPackageTrackingPixels}
            documentationFeature@DocumentationFeature{documentationResource, queryDocumentation}
            TarIndexCacheFeature{cachedTarIndex}
            reportsFeature
@@ -619,6 +622,7 @@ mkHtmlCore ServerEnv{serverBaseURI, serverBlobStore}
           documentationFeature reportsFeature realpkg
         mdocIndex     <- maybe (return Nothing)
           (liftM Just . liftIO . cachedTarIndex) mdoctarblob
+        trackingPixels <- getPackageTrackingPixels pkgname
         let (install, test, covg) = getBadgeStats rptStats
         let
           loadDocMeta
@@ -646,6 +650,7 @@ mkHtmlCore ServerEnv{serverBaseURI, serverBlobStore}
           , "sbaseurl"          $= show (serverBaseURI { URI.uriScheme = "https:" })
           , "cabalVersion"      $= display cabalVersion
           , "tags"              $= (renderTags tags)
+          , "trackingPixels"    $= map trackingPixelUrl (Set.toList trackingPixels)
           , "versions"          $= (PagesNew.renderVersion realpkg
               (classifyVersions prefInfo $ map packageVersion pkgs) infoUrl)
           , "totalDownloads"    $= totalDown
