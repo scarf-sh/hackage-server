@@ -12,7 +12,7 @@ $hackagePageHeader()$
 <h2>Adding a tracking pixel to <a href="/package/$pkgname$">$pkgname$</a></h2>
 
 <form method="post" target="/package/$pkgname$/tracking-pixels">
-    <label for="tracking-pixel">Tracking pixel url</label>
+    <label for="tracking-pixel">Tracking Image URL</label>
     <input name="tracking-pixel" type="text" />
     <input type="submit" />
 <form>

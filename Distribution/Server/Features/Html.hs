@@ -137,6 +137,7 @@ initHtmlFeature env@ServerEnv{serverTemplatesDir, serverTemplatesMode,
                    , "candidate-page.html"
                    , "candidate-index.html"
                    , "tracking-pixels-page.html"
+                   , "user-tracking-pixels-page.html"
                    ]
 
 
@@ -308,7 +309,7 @@ htmlFeature env@ServerEnv{..}
     htmlTags       = mkHtmlTags       utilities core upload user list tags templates
     htmlSearch     = mkHtmlSearch     utilities core list names cacheBrowseTable templates
 
-    htmlTrackingPixels = mkHtmlTrackingPixels utilities core trackingPixels templates
+    htmlTrackingPixels = mkHtmlTrackingPixels utilities core user upload trackingPixels templates
 
     htmlResources = concat [
         htmlCoreResources       htmlCore
@@ -1823,8 +1824,8 @@ newtype HtmlTrackingPixels = HtmlTrackingPixels {
     htmlTrackingPixelsResources :: [Resource]
   }
 
-mkHtmlTrackingPixels :: HtmlUtilities -> CoreFeature -> TrackingPixelsFeature -> Templates -> HtmlTrackingPixels
-mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} TrackingPixelsFeature{..} templates = HtmlTrackingPixels{..}
+mkHtmlTrackingPixels :: HtmlUtilities -> CoreFeature -> UserFeature -> UploadFeature -> TrackingPixelsFeature -> Templates -> HtmlTrackingPixels
+mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} UserFeature{..} UploadFeature{..} TrackingPixelsFeature{..} templates = HtmlTrackingPixels{..}
   where
     CoreResource{..} = coreResource
 
@@ -1832,8 +1833,49 @@ mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} TrackingPixelsFeature{..}
         (extendResource trackingPixelsResource) {
             resourceGet = [("html", servePackageTrackingPixels)]
           , resourcePost = [("html", serveAddPackageTrackingPixel)] 
+        },
+        (extendResource userTrackingPixelsResource) {
+            resourceGet = [("html", serveUserPackageTrackingPixels)]
+          , resourcePost = [("html", serveAddUserPackageTrackingPixel)] 
+          , resourceDelete = [("html", serveRemoveUserPackageTrackingPixel)]
         }
       ]
+
+    serveUserPackageTrackingPixels :: DynamicPath -> ServerPartE Response
+    serveUserPackageTrackingPixels dpath = do
+        uname <- userNameInPath dpath
+        userPackagesTrackingPixelsHtml uname
+
+    serveAddUserPackageTrackingPixel :: DynamicPath -> ServerPartE Response
+    serveAddUserPackageTrackingPixel = 
+      serveModifyUserPackageTrackingPixel $ \pkgname pixel -> do
+        _ <- addPackageTrackingPixel pkgname pixel
+        pure ()
+
+    serveRemoveUserPackageTrackingPixel :: DynamicPath -> ServerPartE Response
+    serveRemoveUserPackageTrackingPixel = 
+      serveModifyUserPackageTrackingPixel removePackageTrackingPixel
+
+    serveModifyUserPackageTrackingPixel 
+      :: (PackageName -> TrackingPixel -> ServerPartE ()) 
+      -> DynamicPath 
+      -> ServerPartE Response
+    serveModifyUserPackageTrackingPixel modifyPixel dpath = do
+        uname   <- userNameInPath dpath
+        request <-
+            getDataFn $ (,)
+                <$> look "package"
+                <*> look "tracking-pixel"
+        case request of 
+            Left errs -> 
+                errBadRequest "Error adding new tracking pixel"
+                    ((MText "Tracking pixel url missing.") : map MText errs)
+            Right (pkgnameStr, trackingPixel) -> do
+                let pkgname = mkPackageName pkgnameStr
+                    pixel   = TrackingPixel (T.pack trackingPixel)
+                guardAuthorisedAsMaintainerOrTrustee pkgname
+                modifyPixel pkgname pixel
+                userPackagesTrackingPixelsHtml uname
 
     servePackageTrackingPixels :: DynamicPath -> ServerPartE Response 
     servePackageTrackingPixels dpath = do
@@ -1861,6 +1903,20 @@ mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} TrackingPixelsFeature{..}
         return $ toResponse $ template
             [ "pkgname" $= pkgname,
               "trackingPixels" $= map trackingPixelUrl (Set.toList trackingPixels)
+            ]
+
+    userPackagesTrackingPixelsHtml :: UserName -> ServerPartE Response
+    userPackagesTrackingPixelsHtml uname = do
+        uid  <- lookupUserName uname
+        pkgs <- maintainersPackages uid
+        pkgpixels <- forM (Set.toList pkgs) $ \pkgname -> do
+            pixels <- getPackageTrackingPixels pkgname
+            pure (pkgname, map trackingPixelUrl (Set.toList pixels))
+        template <- getTemplate templates "user-tracking-pixels-page.html"
+        return $ toResponse $ template 
+            [   "username"  $= uname,
+                "pkgs"      $= pkgs,
+                "pkgpixels" $= filter (not . null . snd) pkgpixels
             ]
 
 {-------------------------------------------------------------------------------

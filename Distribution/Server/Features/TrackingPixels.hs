@@ -25,6 +25,7 @@ import Distribution.Package
 data TrackingPixelsFeature = TrackingPixelsFeature {
     trackingPixelsFeatureInterface :: HackageFeature,
     trackingPixelsResource         :: Resource,
+    userTrackingPixelsResource     :: Resource,
 
     trackingPixelAdded             :: Hook (PackageName, TrackingPixel) (),
     trackingPixelRemoved           :: Hook (PackageName, TrackingPixel) (),
@@ -101,7 +102,7 @@ trackingPixelsFeature  ServerEnv{..}
   where
     trackingPixelsFeatureInterface  = (emptyHackageFeature "trackingPixels") {
         featureDesc      = "Allow users to attach tracking pixels to their packages",
-        featureResources = [trackingPixelsResource]
+        featureResources = [trackingPixelsResource, userTrackingPixelsResource]
       , featureState     = [abstractAcidStateComponent trackingPixelsState]
       }
 
@@ -115,6 +116,9 @@ trackingPixelsFeature  ServerEnv{..}
       , resourcePost   = [("",     servePackageTrackingPixelsPut)]
       , resourceDelete = [("",     servePackageTrackingPixelsDelete)]
     }
+
+    userTrackingPixelsResource :: Resource
+    userTrackingPixelsResource = resourceAt "/user/:username/tracking-pixels.:format"
 
     servePackageTrackingPixelsGet :: DynamicPath -> ServerPartE Response
     servePackageTrackingPixelsGet dpath = do

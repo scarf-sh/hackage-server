@@ -64,6 +64,9 @@ $tokens:{token|
   <li>
     <a href="/user/$username$/password">Change your password</a>
   </li>
+  <li>
+    <a href="/user/$username$/tracking-pixels">Tracking pixels</a>
+  </li>
 </ul>
 
 </div>
