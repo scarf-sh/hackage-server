@@ -27,6 +27,7 @@ import qualified Distribution.Server.Packages.PackageIndex as PackageIndex
 
 import Data.Maybe (fromMaybe)
 import Data.List (dropWhileEnd, intersperse)
+import Data.Set (Set)
 import Data.Time.Clock (getCurrentTime)
 import Data.Function (fix)
 import Data.ByteString.Lazy (ByteString)
@@ -58,6 +59,9 @@ data UploadFeature = UploadFeature {
     uploadersGroup     :: UserGroup,
     -- | The group of maintainers for a given package.
     maintainersGroup   :: PackageName -> UserGroup,
+
+    -- | Set of packages a user is maintainer of.
+    maintainersPackages :: forall m. MonadIO m => Users.UserId -> m (Set PackageName), 
 
     -- | Requiring being logged in as the maintainer of a package.
     guardAuthorisedAsMaintainer          :: PackageName -> ServerPartE Users.UserId,
@@ -178,7 +182,7 @@ maintainersStateComponent stateDir = do
     , stateHandle  = st
     , getState     = query st AllPackageMaintainers
     , putState     = update st . ReplacePackageMaintainers
-    , backupState  = \_ (PackageMaintainers mains) -> [maintToExport mains]
+    , backupState  = \_ (PackageMaintainers mains _) -> [maintToExport mains]
     , restoreState = maintainerBackup
     , resetState   = maintainersStateComponent
     }
@@ -188,7 +192,8 @@ uploadFeature :: ServerEnv
               -> UserFeature
               -> StateComponent AcidState HackageTrustees    -> UserGroup -> GroupResource
               -> StateComponent AcidState HackageUploaders   -> UserGroup -> GroupResource
-              -> StateComponent AcidState PackageMaintainers -> (PackageName -> UserGroup) -> GroupResource
+              -> StateComponent AcidState PackageMaintainers -> (PackageName -> UserGroup) 
+              -> GroupResource
               -> (UploadFeature,
                   UserGroup,
                   UserGroup,
@@ -241,6 +246,9 @@ uploadFeature ServerEnv{serverBlobStore = store}
           , uploaderUri = \format -> renderResource (groupResource uploadersGroupResource) [format]
           }
 
+    maintainersPackages :: MonadIO m => Users.UserId -> m (Set PackageName)
+    maintainersPackages uid = 
+      queryState maintainersState $ GetMaintainersPackages uid
 
     uploadPlain :: ServerPartE Response
     uploadPlain = nullDir >> do

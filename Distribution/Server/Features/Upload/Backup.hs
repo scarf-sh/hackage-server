@@ -16,6 +16,7 @@ import Distribution.Server.Framework.BackupDump
 
 import Distribution.Package
 import Distribution.Text
+import Data.SafeCopy (migrate)
 import Data.Version
 import Text.CSV (CSV, Record)
 
@@ -39,7 +40,7 @@ updateMaintainers mains = RestoreBackup {
         _ ->
           return (updateMaintainers mains)
   , restoreFinalize =
-      return $ PackageMaintainers (mains)
+      return $ migrate $ PackageMaintainers_v0 (mains)
   }
 
 importMaintainers :: CSV -> Map PackageName UserIdSet -> Restore (Map PackageName UserIdSet)
