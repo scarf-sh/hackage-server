@@ -107,7 +107,7 @@ trackingPixelsFeature  ServerEnv{..}
       }
 
     trackingPixelsResource :: Resource
-    trackingPixelsResource = (resourceAt "/packages/:package/tracking-pixels.:format") {
+    trackingPixelsResource = (resourceAt "/package/:package/tracking-pixels.:format") {
         resourceDesc   = [ (GET, "Returns the installed tracking pixels for a package")
                          , (PUT, "Adds a tracking pixel to this package")
                          , (DELETE, "Remove a tracking pixel from this package")

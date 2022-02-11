@@ -1833,6 +1833,7 @@ mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} UserFeature{..} UploadFea
         (extendResource trackingPixelsResource) {
             resourceGet = [("html", servePackageTrackingPixels)]
           , resourcePost = [("html", serveAddPackageTrackingPixel)] 
+          , resourceDelete = [("html", serveRemovePackageTrackingPixel)]
         },
         (extendResource userTrackingPixelsResource) {
             resourceGet = [("html", serveUserPackageTrackingPixels)]
@@ -1877,24 +1878,38 @@ mkHtmlTrackingPixels HtmlUtilities{..} CoreFeature{..} UserFeature{..} UploadFea
                 modifyPixel pkgname pixel
                 userPackagesTrackingPixelsHtml uname
 
-    servePackageTrackingPixels :: DynamicPath -> ServerPartE Response 
+    servePackageTrackingPixels :: DynamicPath -> ServerPartE Response
     servePackageTrackingPixels dpath = do
         pkgname <- packageInPath dpath
-        guardValidPackageName pkgname
-        packageTrackingPixelsHtml pkgname    
+        packageTrackingPixelsHtml pkgname
 
-    serveAddPackageTrackingPixel :: DynamicPath -> ServerPartE Response
-    serveAddPackageTrackingPixel dpath = do
+    serveAddPackageTrackingPixel :: DynamicPath -> ServerPartE Response 
+    serveAddPackageTrackingPixel = do
+        serveModifyPackageTrackingPixel $ \pkgname pixel -> do
+            _ <- addPackageTrackingPixel pkgname pixel
+            pure ()    
+
+    serveRemovePackageTrackingPixel :: DynamicPath -> ServerPartE Response
+    serveRemovePackageTrackingPixel = 
+      serveModifyPackageTrackingPixel removePackageTrackingPixel
+
+    serveModifyPackageTrackingPixel 
+      :: (PackageName -> TrackingPixel -> ServerPartE ())
+      -> DynamicPath
+      -> ServerPartE Response
+    serveModifyPackageTrackingPixel modifyPixel dpath = do
         pkgname <- packageInPath dpath
         guardValidPackageName pkgname
-        --guardAuthorised_ [InGroup adminGroup]
-        reqData <- getDataFn (look "tracking-pixel")
-        case reqData of
-            (Left errs) -> errBadRequest "Error adding new tracking pixel"
-                       ((MText "Tracking pixel url missing.") : map MText errs)
-            (Right trackingPixel) -> do
-                _added <- addPackageTrackingPixel pkgname (TrackingPixel (T.pack trackingPixel))
-                servePackageTrackingPixels dpath
+        guardAuthorisedAsMaintainerOrTrustee pkgname
+        request <- getDataFn (look "tracking-pixel")
+        case request of 
+            Left errs -> 
+                errBadRequest "Error adding new tracking pixel"
+                    ((MText "Tracking pixel url missing.") : map MText errs)
+            Right trackingPixel -> do 
+              let pixel = TrackingPixel (T.pack trackingPixel)
+              modifyPixel pkgname pixel
+              packageTrackingPixelsHtml pkgname            
 
     packageTrackingPixelsHtml :: PackageName -> ServerPartE Response
     packageTrackingPixelsHtml pkgname = do
